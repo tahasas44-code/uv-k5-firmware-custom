@@ -185,16 +185,6 @@ void DisplayRSSIBar(const bool now)
 	uint8_t           *p_line        = gFrameBuffer[line];
 	char               str[16];
 
-	const char plus[] = {
-		0b00011000,
-		0b00011000,
-		0b01111110,
-		0b01111110,
-		0b01111110,
-		0b00011000,
-		0b00011000,
-	};
-
 	if ((gEeprom.KEY_LOCK && gKeypadLocked > 0) || center_line != CENTER_LINE_RSSI)
 		return;     // display is in use
 
