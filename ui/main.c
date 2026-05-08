@@ -5,13 +5,13 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *     Unless required by applicable law or agreed to in writing, software
- *     distributed under the License is distributed on an "AS IS" BASIS,
- *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *     See the License for the specific language governing permissions and
- *     limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <string.h>
@@ -73,6 +73,21 @@ static void DrawSmallAntennaAndBars(uint8_t *p, unsigned int level)
 		memset(p + 2 + i*3, bar, 2);
 	}
 }
+
+// --- TA7TSA RADAR MATEMATIGI ---
+float radar_pow10(float x) {
+    float res = 1.0f;
+    int neg = (x < 0);
+    if (neg) x = -x;
+    int i = (int)x;
+    for (int j = 0; j < i; j++) res *= 10.0f;
+    float f = x - (float)i;
+    float frac = 1.0f + 2.302585f * f + 2.650949f * f * f; 
+    res *= frac;
+    return neg ? (1.0f / res) : res;
+}
+// -------------------------------
+
 #if defined ENABLE_AUDIO_BAR || defined ENABLE_RSSI_BAR
 
 static void DrawLevelBar(uint8_t xpos, uint8_t line, uint8_t level)
@@ -159,7 +174,6 @@ void UI_DisplayAudioBar(void)
 }
 #endif
 
-
 void DisplayRSSIBar(const bool now)
 {
 #if defined(ENABLE_RSSI_BAR)
@@ -209,16 +223,34 @@ void DisplayRSSIBar(const bool now)
 	uint8_t overS9dBm = MIN(MAX(rssi_dBm + gEeprom.S9_LEVEL, 0), 99);
 	uint8_t overS9Bars = MIN(overS9dBm/10, 4);
 
-	if(overS9Bars == 0) {
-		sprintf(str, "% 4d S%d", rssi_dBm, s_level);
-	}
-	else {
-		sprintf(str, "% 4d  %2d", rssi_dBm, overS9dBm);
-		memcpy(p_line + 2 + 7*5, &plus, ARRAY_SIZE(plus));
-	}
-
+	// --- ALI DAGI REFERANSLI RADAR MODU ---
+	float ref_guc = -57.0f;    
+	float ref_mesafe = 9.53f;  
+	float n_katsayisi = 2.2f;  
+	
+	// Mesafeyi hesapla
+	float us = (ref_guc - (float)rssi_dBm) / (10.0f * n_katsayisi);
+	float mesafe = ref_mesafe * radar_pow10(us);
+	
+	// Ekrana sigmasi icin limitler
+	if (mesafe > 99.9f) mesafe = 99.9f;
+	if (mesafe < 0.1f)  mesafe = 0.1f;
+	
+	// Kusuratli yazdirma sorunu yasamamak icin parcalama taktigi
+	int mesafe_tam = (int)mesafe;
+	int mesafe_ondalik = (int)((mesafe - (float)mesafe_tam) * 10.0f);
+	
+	// Ekrana yazdir (Ornek: -92  9.5km)
+	sprintf(str, "%4d %2d.%1dkm", rssi_dBm, mesafe_tam, mesafe_ondalik);
 	UI_PrintStringSmallNormal(str, 2, 0, line);
-	DrawLevelBar(bar_x, line, s_level + overS9Bars);
+	
+	// Sinyal cubuklarini biraz saga kaydir
+	unsigned int yeni_bar_x = bar_x + 15; 
+	if (yeni_bar_x < 110) {
+	    DrawLevelBar(yeni_bar_x, line, s_level + overS9Bars);
+	}
+	// --------------------------------------
+
 	if (now)
 		ST7565_BlitLine(line);
 #else
